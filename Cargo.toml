@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+dotenvy = "0.15.7"
 rig = "0.45.0"
 schemars = "1.2.3"
 serde = "1.0.229"
