@@ -1,5 +1,6 @@
 use rig::prelude::*;
 use rig::providers::openai::OpenAI;
+use rust_magi::bus::message::AgentMessage;
 use rust_magi::constance::{
     AGENT1_MODEL_NAME, AGENT1_PREABLE, AGENT2_MODEL_NAME, AGENT2_PREABLE, AGENT3_MODEL_NAME,
     AGENT3_PREABLE,
@@ -8,15 +9,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use tokio::time::{Duration, interval};
-
-/// Messages exchanged between agents.
-#[derive(Debug, Clone)]
-enum AgentMessage {
-    Task(String),
-    Response(String, String), // (from_agent_id, content)
-    Trigger(String),
-    Shutdown,
-}
 
 /// An actor-based autonomous agent. Each holds its own Rig agent, an inbox,
 /// its history, and channels to its peers.
@@ -68,6 +60,10 @@ impl AutonomousAgent {
                     AgentMessage::Response(from, content) => {
                         self.history.push(format!("From {from}: {content}"));
                     }
+                    _ => {
+                        eprintln!("[Agent {}] 收到 Error", self.id);
+                        break;
+                    }
                 },
                 // Autonomous periodic self-check (external trigger)
                 _ = tick.tick() => {
@@ -78,18 +74,38 @@ impl AutonomousAgent {
     }
 }
 
+use rust_magi::agent::factory::{self, MagiCore, MagiCoreID};
+use rust_magi::config::config::MagiConfiguration;
+use rust_magi::prompt::create_prompt::{self, create_sys_prompt};
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv()?;
-    let agent1: Agent = AgentBuilder::new(OpenAI::from_env()?.completion(AGENT1_MODEL_NAME))
-        .preamble(AGENT1_PREABLE)
-        .build();
-    let agent2: Agent = AgentBuilder::new(OpenAI::from_env()?.completion(AGENT2_MODEL_NAME))
-        .preamble(AGENT2_PREABLE)
-        .build();
-    let agent3: Agent = AgentBuilder::new(OpenAI::from_env()?.completion(AGENT3_MODEL_NAME))
-        .preamble(AGENT3_PREABLE)
-        .build();
+
+    let magi_config: MagiConfiguration = MagiConfiguration::new(
+        AGENT1_MODEL_NAME.to_string(),
+        AGENT2_MODEL_NAME.to_string(),
+        AGENT3_MODEL_NAME.to_string(),
+    );
+
+    let agent_core1: MagiCore = MagiCore::new(
+        MagiCoreID::Balthasar,
+        &magi_config,
+    )?;
+
+    let agent_core2: MagiCore = MagiCore::new(
+        MagiCoreID::Casper,
+        &magi_config,
+    )?;
+
+    let agent_core3: MagiCore = MagiCore::new(
+        MagiCoreID::Melchior,
+        &magi_config,
+    )?;
+
+    let agent1 = agent_core1.get_agent().clone();
+    let agent2 = agent_core2.get_agent().clone();
+    let agent3 = agent_core3.get_agent().clone();
 
     // Create independent inboxes.
     let (tx_1, rx_1) = mpsc::channel(64);

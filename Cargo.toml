@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.104"
 dotenvy = "0.15.7"
-rig = "0.45.0"
+rig = { version = "0.45.0", features = ["test-utils"] }
 schemars = "1.2.3"
 serde = "1.0.229"
 tokio = { version = "1.54.1", features = ["full"] }
