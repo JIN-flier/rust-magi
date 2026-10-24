@@ -4,6 +4,19 @@
 
 **项目状态：设计阶段（CLI 优先）**。本文记录当前的初步设计与预期行为，不代表下述功能已经实现。具体协议和细节会随着开发调整。
 
+当前代码已实现一个文章评审示例：作者生成文章后，另外两个 Agent 并行给出改进建议和事实核查结果。该示例已拆分为以下模块：
+
+- `bus::message::MessageBus`：管理独立的有界收件箱和公共响应入口；调用 `recv()` 时，将响应转发给其他 Agent，并交给工作流处理。
+- `agent::atuonomous::AutonomousAgent`：执行 Task / Trigger，记录自身及其他 Agent 的响应，处理关闭和请求错误。
+- `workflow::article_review::ArticleReviewWorkflow`：接收三个 Rig Agent，提供 `run(task)`，返回 `ArticleReviewResult { article, review, fact_check }`。
+- `main`：加载配置、创建模型、调用工作流并打印三份结果。
+
+工作流默认整体超时为 120 秒，可通过 `.with_timeout(Duration)` 调整。成功时发送 Shutdown 并等待退出；失败、超时或调用方取消时中止剩余任务。每次运行使用独立的总线和任务。Agent 的历史目前只在内存中记录，尚未传入模型上下文。
+
+所有 Agent 身份统一使用 `agent::factory::MagiCoreID`：作者为 `Balthasar`，评审为 `Casper`，事实核查为 `Melchior`。总线注册、定向发送、收件箱及 `AgentMessage::Response` 都使用该枚举；日志通过其 `Display` 实现显示名称。
+
+运行 `cargo test` 可执行不依赖 API Key 或外部服务的路由、Agent 和工作流测试；运行 `cargo run` 仍需现有 `.env` 和模型服务配置。以下 Vote / Discussion、工具调用及共识机制仍为规划内容。
+
 ## 1. 项目目标
 
 MAGI 由三个能够独立思考、公开讨论和调用工具的子 Agent 组成。用户只需提交一个问题或任务，系统将：

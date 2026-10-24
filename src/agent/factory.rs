@@ -2,17 +2,27 @@ use rig::prelude::*;
 use rig::providers::openai::OpenAI;
 
 use crate::config::config::MagiConfiguration;
-use crate::prompt::create_prompt::create_sys_prompt;
 use crate::constance::{
     AGENT1_MODEL_NAME, AGENT1_PREABLE, AGENT2_MODEL_NAME, AGENT2_PREABLE, AGENT3_MODEL_NAME,
     AGENT3_PREABLE,
 };
+use crate::prompt::create_prompt::create_sys_prompt;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MagiCoreID {
     Melchior,
     Balthasar,
     Casper,
+}
+
+impl std::fmt::Display for MagiCoreID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Melchior => "MELCHIOR",
+            Self::Balthasar => "BALTHASAR",
+            Self::Casper => "CASPER",
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -24,10 +34,7 @@ pub struct MagiCore {
 }
 
 impl MagiCore {
-    pub fn new(
-        id: MagiCoreID,
-        magi_config: &MagiConfiguration,
-    ) -> anyhow::Result<Self> {
+    pub fn new(id: MagiCoreID, magi_config: &MagiConfiguration) -> anyhow::Result<Self> {
         let model_name = magi_config.get_model_name(&id);
         let system_prompt = create_sys_prompt(&id, AGENT1_PREABLE);
         let magi_core = MagiCore {
