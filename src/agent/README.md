@@ -21,6 +21,7 @@
 | MagiCore 接口 | 功能与返回值 | 状态/错误 |
 | --- | --- | --- |
 | `new(id, &MagiConfiguration) -> anyhow::Result<Self>` | 查模型名，拼接系统提示词，创建带身份的 Rig Agent | 环境初始化失败返回错误；此时不发送模型请求 |
+| `new_with_preamble(id, &MagiConfiguration, preamble) -> anyhow::Result<Self>` | 使用指定基础提示词创建带身份的 Agent，供会议和投票示例使用 | 同上 |
 | `get_id(&self) -> &MagiCoreID` | 借用绑定身份 | 已实现 |
 | `get_agent(&self) -> &Agent` | 借用 Rig Agent，调用方可克隆句柄交给工作流 | 已实现 |
 | `chat_completion(&mut self, &str) -> Self`（async） | 预留非流式对话封装 | 未实现，调用会 panic |

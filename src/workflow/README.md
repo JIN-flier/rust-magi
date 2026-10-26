@@ -1,4 +1,14 @@
-# workflow：文章生成与双路评审
+# workflow：文章评审、会议与投票
+
+## 会议与投票
+
+`MeetingWorkflow::new(balthasar, casper, melchior)` 接收三个 Rig Agent。`run(query)` 首轮把同一问题并行交给三人；后续每轮把此前三人的所有发言和提案、同一版候选结论放进提示词。模型通过 schema 返回 `message`（发言）、`proposal`（完整候选结论）和 `agrees_with_candidate`。首轮三人的提案完全相同时可直接形成共识；否则采用 Balthasar 的提案作为候选，有异议时采用首位异议者的提案作为下一轮候选。三人同轮明确认可候选时，`MeetingResult.consensus` 为 `Some`；达到 `with_max_turns` 设定的轮数（默认 5）则为 `None`，并保留 `rounds`。一轮是每位 Agent 各请求一次。默认整体超时 120 秒，可用 `with_timeout` 修改。
+
+`VoteWorkflow::new(balthasar, casper, melchior)` 同样接收三个 Rig Agent。`run(query)` 同时向三人发送相同问题，使用 Rig `prompt_typed` 按 schema 收集 `choice: bool` 与 `reason: String`。`VoteResult` 保存三份带身份的票和 `decision: bool`；至少两票 `true` 时结果为 `true`。任一票无效、理由为空、请求失败或超时都返回错误，不生成决议。默认整体超时 120 秒，可用 `with_timeout` 修改。
+
+两个新工作流会取消失败或超时后仍在执行的请求。会议交流通过工作流保存并注入完整讨论记录完成，不依赖当前总线；现有 `AutonomousAgent` 虽会记录收到的同伴响应，但不会把该历史自动传给模型。示例入口：`cargo run --example meeting -- "如何发布新版本？"` 与 `cargo run --example vote -- "是否发布新版本？"`。
+
+## 文章评审
 
 [返回 src 导航](../README.md)
 
@@ -39,7 +49,7 @@
 - `with_timeout` 覆盖业务执行、消息投递和正常 Shutdown 等待。超时后的取消与 join 清理在该窗口之外，不是严格的进程级硬截止时间。
 - 调用方丢弃 `run` future 时，JoinSet 的 Drop 请求中止全部所属任务。Tokio 中止依赖协作式调度，不能抢占同步阻塞代码。
 
-此流程没有重试、持久化恢复、投票或共识判断。对等响应目前只在 actor 中记录，不自动成为模型上下文。
+文章评审流程没有重试、持久化恢复、投票或共识判断。对等响应目前只在 actor 中记录，不自动成为模型上下文。
 
 ## 离线完整示例
 

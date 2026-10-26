@@ -6,10 +6,7 @@ use rig::prelude::*;
 use rig::providers::openai::OpenAI;
 
 use crate::config::config::MagiConfiguration;
-use crate::constance::{
-    AGENT1_MODEL_NAME, AGENT1_PREABLE, AGENT2_MODEL_NAME, AGENT2_PREABLE, AGENT3_MODEL_NAME,
-    AGENT3_PREABLE,
-};
+use crate::constance::AGENT1_PREABLE;
 use crate::prompt::create_prompt::create_sys_prompt;
 
 /// 全项目统一的 Agent 身份，用于配置查询、消息来源和路由键。
@@ -23,6 +20,8 @@ pub enum MagiCoreID {
     Balthasar,
     /// 文章评审流程中的改进建议评审者。
     Casper,
+    /// fast & cheap model
+    FastCheap,
 }
 
 impl std::fmt::Display for MagiCoreID {
@@ -31,6 +30,7 @@ impl std::fmt::Display for MagiCoreID {
             Self::Melchior => "MELCHIOR",
             Self::Balthasar => "BALTHASAR",
             Self::Casper => "CASPER",
+            Self::FastCheap => "FastCheap",
         })
     }
 }
@@ -55,10 +55,20 @@ impl MagiCore {
     ///
     /// 服务端客户端无法从环境配置初始化时返回错误。
     pub fn new(id: MagiCoreID, magi_config: &MagiConfiguration) -> anyhow::Result<Self> {
+        Self::new_with_preamble(id, magi_config, AGENT1_PREABLE)
+    }
+
+    /// 使用指定的基础系统提示词构造 MAGI；适用于非文章类工作流。
+    /// 人格前缀仍由身份决定，模型名仍从配置中读取。
+    pub fn new_with_preamble(
+        id: MagiCoreID,
+        magi_config: &MagiConfiguration,
+        preamble: &str,
+    ) -> anyhow::Result<Self> {
         let model_name = magi_config.get_model_name(&id);
-        let system_prompt = create_sys_prompt(&id, AGENT1_PREABLE);
+        let system_prompt = create_sys_prompt(&id, preamble);
         let magi_core = MagiCore {
-            id: id,
+            id,
             agent: AgentBuilder::new(OpenAI::from_env()?.completion(model_name))
                 .preamble(system_prompt)
                 .build(),

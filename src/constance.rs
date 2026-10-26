@@ -17,3 +17,8 @@ pub const AGENT2_PREABLE: &str =
 /// 为事实核查角色预留的基础提示词，目前未被工厂使用。
 pub const AGENT3_PREABLE: &str =
     "you are a helpful assistant. You can check if a artical's information is right.";
+
+pub const CHEAP_MODEL_NAME: &str = "nvidia/nemotron-3.5-lightning:free";
+
+/// 会议和投票共用的基础提示词；具体问题和输出 schema 由工作流提供。
+pub const MAGI_GENERAL_PREABLE: &str = "You are a MAGI member. Analyze the user's question independently, explain your reasoning, and follow the workflow's requested output schema.";

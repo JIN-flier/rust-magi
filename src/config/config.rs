@@ -12,6 +12,7 @@ pub struct MagiConfiguration {
     balthasar_model_name: String,
     casper_model_name: String,
     melchior_model_name: String,
+    cheap_model_name: String,
 }
 
 impl MagiConfiguration {
@@ -22,11 +23,13 @@ impl MagiConfiguration {
         balthasar_model_name: String,
         casper_model_name: String,
         melchior_model_name: String,
+        cheap_model_name: String,
     ) -> Self {
         MagiConfiguration {
             balthasar_model_name,
             casper_model_name,
             melchior_model_name,
+            cheap_model_name,
         }
     }
 
@@ -51,6 +54,7 @@ impl MagiConfiguration {
             MagiCoreID::Balthasar => self.balthasar_model_name.clone(),
             MagiCoreID::Casper => self.casper_model_name.clone(),
             MagiCoreID::Melchior => self.melchior_model_name.clone(),
+            MagiCoreID::FastCheap => self.cheap_model_name.clone(),
             _ => DEFAULT_MODEL_NAME.into(),
         }
     }
@@ -75,10 +79,12 @@ mod tests {
         let test_balthasar_model_name: String = "balthasar_model_name".into();
         let test_casper_model_name: String = "casper_model_name".into();
         let test_melchior_model_name: String = "melchior_model_name".into();
+        let test_cheap_model_name: String = "cheap_model_name".into();
         let my_config = MagiConfiguration::new(
             test_balthasar_model_name.clone(),
             test_casper_model_name.clone(),
             test_melchior_model_name.clone(),
+            test_cheap_model_name.clone(),
         );
         assert_eq!(
             my_config,
@@ -86,6 +92,7 @@ mod tests {
                 balthasar_model_name: test_balthasar_model_name.clone(),
                 casper_model_name: test_casper_model_name.clone(),
                 melchior_model_name: test_melchior_model_name.clone(),
+                cheap_model_name: test_cheap_model_name.clone(),
             }
         );
     }

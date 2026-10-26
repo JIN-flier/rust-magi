@@ -2,22 +2,24 @@
 
 > 一个基于 [Rig](https://rig.rs/) 与 Rust 构建的多 Agent 协商和执行系统，灵感来自《新世纪福音战士》（EVA）的 MAGI 三贤人系统。
 
-**项目状态：设计阶段（CLI 优先）**。本文记录当前的初步设计与预期行为，不代表下述功能已经实现。具体协议和细节会随着开发调整。
+**项目状态：早期实现（CLI 优先）**。本文同时记录已实现功能与后续设计；具体可用接口以模块文档为准。
 
 接手代码请从 [src 交接导航](src/README.md) 开始，其中链接了各模块的接口、调用示例、错误处理和未完成事项。
 
-当前代码已实现一个文章评审示例：作者生成文章后，另外两个 Agent 并行给出改进建议和事实核查结果。该示例已拆分为以下模块：
+当前代码已实现文章评审、会议和二元投票三个工作流。文章评审示例中，作者生成文章后，另外两个 Agent 并行给出改进建议和事实核查结果。相关模块包括：
 
 - `bus::message::MessageBus`：管理独立的有界收件箱和公共响应入口；调用 `recv()` 时，将响应转发给其他 Agent，并交给工作流处理。
 - `agent::atuonomous::AutonomousAgent`：执行 Task / Trigger，记录自身及其他 Agent 的响应，处理关闭和请求错误。
 - `workflow::article_review::ArticleReviewWorkflow`：接收三个 Rig Agent，提供 `run(task)`，返回 `ArticleReviewResult { article, review, fact_check }`。
+- `workflow::meeting::MeetingWorkflow`：三人按轮并行发言；下一轮每人看到此前全部发言，对同一候选结论明确表态。三人一致或达到 `max_turns` 后结束。
+- `workflow::vote::VoteWorkflow`：三人独立以 schema 输出 `choice: bool` 和 `reason`，收齐三票后取多数。
 - `main`：加载配置、创建模型、调用工作流并打印三份结果。
 
-工作流默认整体超时为 120 秒，可通过 `.with_timeout(Duration)` 调整。成功时发送 Shutdown 并等待退出；失败、超时或调用方取消时中止剩余任务。每次运行使用独立的总线和任务。Agent 的历史目前只在内存中记录，尚未传入模型上下文。
+文章评审工作流默认整体超时为 120 秒，可通过 `.with_timeout(Duration)` 调整。成功时发送 Shutdown 并等待退出；失败、超时或调用方取消时中止剩余任务。每次运行使用独立的总线和任务。该流程中 Agent 的历史目前只在内存中记录，尚未传入模型上下文。会议和投票也默认超时 120 秒，但直接通过 Rig 发起并发请求。
 
 所有 Agent 身份统一使用 `agent::factory::MagiCoreID`：作者为 `Balthasar`，评审为 `Casper`，事实核查为 `Melchior`。总线注册、定向发送、收件箱及 `AgentMessage::Response` 都使用该枚举；日志通过其 `Display` 实现显示名称。
 
-运行 `cargo test` 可执行不依赖 API Key 或外部服务的路由、Agent 和工作流测试；运行 `cargo run` 仍需现有 `.env` 和模型服务配置。以下 Vote / Discussion、工具调用及共识机制仍为规划内容。
+运行 `cargo test` 可执行不依赖 API Key 或外部服务的测试；运行 `cargo run --example meeting -- "问题"` 或 `cargo run --example vote -- "是否……？"` 需现有 `.env` 和模型服务配置。自动模式选择、工具调用和更复杂的共识机制仍为规划内容。新工作流直接把讨论记录加入下一轮提示词，并未使用当前消息总线；`max_turns` 表示三位 Agent 各发言一次的轮数。
 
 ## 1. 项目目标
 

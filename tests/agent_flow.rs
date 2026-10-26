@@ -75,6 +75,7 @@ async fn assert_model_failure(failed_role: MagiCoreID) {
         MagiCoreID::Balthasar => "Agent BALTHASAR",
         MagiCoreID::Casper => "Agent CASPER",
         MagiCoreID::Melchior => "Agent MELCHIOR",
+        MagiCoreID::FastCheap => "Agent FASTCHEAP",
     };
     assert!(error.contains(expected_agent), "{error}");
     if failed_role == MagiCoreID::Balthasar {

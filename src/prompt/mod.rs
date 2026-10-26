@@ -6,3 +6,5 @@
 pub mod create_prompt;
 /// 当前示例使用的内部人格占位文本。
 mod personality;
+/// 用于进行意图识别
+pub mod intent_recognise;

@@ -1,8 +1,7 @@
-//! MAGI 的库入口：按身份创建 Agent，通过消息总线运行文章生成与双路评审。
+//! MAGI 的库入口：按身份创建 Agent，运行文章评审、会议或投票。
 //!
-//! 调用方通常从 [`workflow::article_review::ArticleReviewWorkflow`] 开始，
-//! 注入三个 Rig Agent，并取得结构化结果。库本身不加载 `.env`，也不打印业务结果。
-//! 配置文件读取、投票和共识机制尚未实现；完整模块导航见 `src/README.md`。
+//! 三种工作流均注入三个 Rig Agent；库本身不加载 `.env`，也不打印业务结果。
+//! 配置文件读取及工具调用仍未实现；完整模块导航见 `src/README.md`。
 
 /// 统一身份、模型工厂和 Agent 执行循环。
 pub mod agent;

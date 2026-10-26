@@ -5,7 +5,7 @@
 use rust_magi::{
     agent::factory::{MagiCore, MagiCoreID},
     config::config::MagiConfiguration,
-    constance::{AGENT1_MODEL_NAME, AGENT2_MODEL_NAME, AGENT3_MODEL_NAME},
+    constance::{AGENT1_MODEL_NAME, AGENT2_MODEL_NAME, AGENT3_MODEL_NAME, CHEAP_MODEL_NAME},
     workflow::article_review::ArticleReviewWorkflow,
 };
 
@@ -19,6 +19,7 @@ async fn main() -> anyhow::Result<()> {
         AGENT1_MODEL_NAME.to_string(),
         AGENT2_MODEL_NAME.to_string(),
         AGENT3_MODEL_NAME.to_string(),
+        CHEAP_MODEL_NAME.to_string(),
     );
     let writer = MagiCore::new(MagiCoreID::Balthasar, &config)?;
     let reviewer = MagiCore::new(MagiCoreID::Casper, &config)?;

@@ -1,5 +1,5 @@
 use rust_magi::{
-    config::config::{DEFAULT_MODEL_NAME, MagiConfiguration},
+    config::config::{MagiConfiguration},
 };
 
 #[test]
@@ -9,10 +9,12 @@ fn configuration_create() {
     let test_agent1_model_name: String = "agent1_model_name".into();
     let test_agent2_model_name: String = "agent2_model_name".into();
     let test_agent3_model_name: String = "agent3_model_name".into();
+    let test_cheap_model_name: String = "cheap_model_name".into();
     let my_config = MagiConfiguration::new(
         test_agent1_model_name.clone(),
         test_agent2_model_name.clone(),
         test_agent3_model_name.clone(),
+        test_cheap_model_name.to_string(),
     );
     assert_eq!(
         my_config.get_model_name(&MagiCoreID::Balthasar),
@@ -25,6 +27,10 @@ fn configuration_create() {
     assert_eq!(
         my_config.get_model_name(&MagiCoreID::Melchior),
         test_agent3_model_name
+    );
+    assert_eq!(
+        my_config.get_model_name(&MagiCoreID::FastCheap),
+        test_cheap_model_name
     );
 
     println!("config test all pass!");

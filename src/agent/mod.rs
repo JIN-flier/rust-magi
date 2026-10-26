@@ -6,3 +6,5 @@
 pub mod atuonomous;
 /// 创建带身份和系统提示词的 Rig Agent。
 pub mod factory;
+/// 用于区分用户query的意图识别agent。
+pub mod intent;

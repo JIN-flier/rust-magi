@@ -3,6 +3,22 @@ name = "rust-magi"
 version = "0.1.0"
 edition = "2024"
 
+[[example]]
+name = "artical_review"
+path = "examples/artical_review_flow.rs"
+
+[[example]]
+name = "meeting"
+path = "examples/meeting_flow.rs"
+
+[[example]]
+name = "vote"
+path = "examples/vote_flow.rs"
+
+[[example]]
+name = "intent"
+path = "examples/intent_recog.rs"
+
 [dependencies]
 anyhow = "1.0.104"
 dotenvy = "0.15.7"

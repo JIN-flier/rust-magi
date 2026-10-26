@@ -1,6 +1,6 @@
 # src 交接导航
 
-当前可运行的业务是：Balthasar 生成文章，Casper 和 Melchior 并行给出改进建议与事实核查，最后返回三份文本。仓库根目录 README 描述的投票、讨论共识、工具网关等仍属于规划。
+当前可运行的业务有文章评审、会议讨论和二元投票。工具网关、自动选择工作流和更复杂的共识规则仍属于规划。
 
 ## 从哪里开始阅读
 
@@ -12,7 +12,7 @@
 | [bus](bus/README.md) | 收件箱、定向消息与公开响应转发 | `AgentMessage`、`MessageBus`、`AgentMailbox` |
 | [config](config/README.md) | 保存每个身份的模型名称 | `MagiConfiguration` |
 | [prompt](prompt/README.md) | 拼接人格前缀与基础系统提示词 | `create_sys_prompt`，以及私有人格模板说明 |
-| [workflow](workflow/README.md) | 编排业务和管理后台任务 | `ArticleReviewWorkflow`、`ArticleReviewResult` |
+| [workflow](workflow/README.md) | 编排文章评审、会议及投票 | `ArticleReviewWorkflow`、`MeetingWorkflow`、`VoteWorkflow` |
 | [constance.rs](constance.rs) | CLI 示例默认模型名、基础提示词 | 本文“默认常量” |
 
 建议按 `main → workflow → agent → bus` 理解执行过程，再查看 `config` 和 `prompt`。每个目录 README 同时介绍其文件子模块，不需要按文件名再创建目录。
@@ -33,7 +33,7 @@ main
 
 `AgentMailbox::respond` 只把响应放入公共队列；工作流调用 `MessageBus::recv` 后，总线才转发给其他 Agent 并将响应交给工作流。公共响应记录在 Agent 内存中，目前不会自动加入后续模型请求。
 
-所有身份使用 `agent::factory::MagiCoreID`。模型名、提示词和输出内容仍是字符串。角色映射为 Balthasar＝作者、Casper＝改进建议评审、Melchior＝事实核查；不要使用整数或字符串代替身份。
+所有身份使用 `agent::factory::MagiCoreID`。文章评审中的角色映射为 Balthasar＝作者、Casper＝改进建议评审、Melchior＝事实核查；会议和投票中三者都是参与成员。不要使用整数或字符串代替身份。
 
 ## CLI 入口：main.rs
 

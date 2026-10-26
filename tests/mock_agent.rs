@@ -1,3 +1,7 @@
+use rig::ProviderResponseError;
+use rig::message::AssistantContent;
+use rig::providers::openai::extension::Prediction::Content;
+use rig::test_utils::{MockError, MockTurn};
 use rig::{prelude::*, test_utils::MockCompletionModel};
 use rust_magi::agent::factory::MagiCoreID::{Balthasar, Casper};
 use rust_magi::{
@@ -75,3 +79,4 @@ async fn error_message_terminates_agent_with_context() {
     assert!(message.contains("BALTHASAR"));
     assert!(message.contains("stop reason"));
 }
+
