@@ -75,7 +75,7 @@ impl VoteWorkflow {
 
     async fn cast(&self, agent: &Agent, id: MagiCoreID, query: &str) -> Result<Vote> {
         let prompt = format!(
-            "用户问题：\n{query}\n\n请独立做出二元选择，并严格按 JSON schema 输出 choice（布尔值）和 reason（理由）。不要参考其他 MAGI 的票。"
+            "用户问题：\n{query}\n\n请独立做出二元选择，并严格按 JSON schema 输出 choice（布尔值）和 reason（理由）。"
         );
         let output = agent
             .prompt_typed::<VoteOutput>(prompt)

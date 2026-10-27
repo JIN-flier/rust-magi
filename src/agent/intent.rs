@@ -14,18 +14,22 @@ pub struct IntentWorkflow {
     retry_times: usize,
 }
 
+/// 对议题的处理意图：判断这个议题下一步该怎么走。
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
-struct IntentionOutput {
-    /// 意图识别结果：投票或会议讨论（true对应投票，False对应会议讨论）
-    vote: bool,
-    /// 投票或会议的原因
-    reason: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[serde(tag = "kind")]
 pub enum Intention {
-    Vote(String),
-    Meeting(String),
+    /// 议题收敛为二元选项时使用。
+    Vote {
+        /// 第一个选项的完整表述。
+        option_a: String,
+        /// 第二个选项的完整表述。必须与 option_a 互斥。
+        option_b: String,
+    },
+    /// 议题需要会议讨论时使用。
+    Meeting {
+        /// 补出query背后没说清的东西。
+        interpretation: String,
+    },
 }
 
 impl IntentWorkflow {
@@ -48,15 +52,11 @@ impl IntentWorkflow {
     pub async fn run(&self, query: &str) -> anyhow::Result<Intention> {
         let response = self
             .agent
-            .prompt_typed::<IntentionOutput>(query.to_string())
+            .prompt_typed::<Intention>(query.to_string())
             .max_turns(self.retry_times)
             .retries(self.retry_times)
             .await?;
-        if response.output.vote {
-            Ok(Intention::Vote(response.output.reason))
-        } else {
-            Ok(Intention::Meeting(response.output.reason))
-        }
+        Ok(response.output)
     }
 }
 
@@ -64,8 +64,12 @@ use std::fmt;
 impl fmt::Display for Intention {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Intention::Vote(reason) => write!(f, "投票：{}", reason),
-            Intention::Meeting(reason) => write!(f, "会议：{}", reason),
+            Intention::Vote { option_a, option_b } => {
+                write!(f, "投票：选项1[{}]，选项2[{}]", option_a, option_b)
+            }
+            Intention::Meeting{ interpretation } => {
+                write!(f, "会议：{}", interpretation)
+            }
         }
     }
 }
