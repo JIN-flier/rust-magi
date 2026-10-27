@@ -6,15 +6,14 @@ use anyhow::{Context, Result, ensure};
 use rig::prelude::*;
 use schemars::JsonSchema;
 use serde::Deserialize;
+use std::fmt::Write;
 use tokio::time::timeout;
 
-use crate::agent::factory::MagiCoreID;
+use crate::workflow::result::WorkflowResult;
+use crate::{agent::factory::MagiCoreID, prompt::create_prompt::create_meeting_prompt};
 
-const IDS: [MagiCoreID; 3] = [
-    MagiCoreID::Balthasar,
-    MagiCoreID::Casper,
-    MagiCoreID::Melchior,
-];
+const MAX_TIMEOUT: u64 = 3000;
+const MAX_TURNS: usize = 10;
 
 /// 一次会议发言、完整提案及其对当前候选结论的态度。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,14 +58,14 @@ pub struct MeetingWorkflow {
 }
 
 impl MeetingWorkflow {
-    /// Agent 参数依次绑定 Balthasar、Casper、Melchior；默认最多 5 轮、120 秒。
+    /// Agent 参数依次绑定 Balthasar、Casper、Melchior；默认最多 5 轮、3000 秒。
     pub fn new(balthasar: Agent, casper: Agent, melchior: Agent) -> Self {
         Self {
             balthasar,
             casper,
             melchior,
-            max_turns: 5,
-            timeout: Duration::from_secs(120),
+            max_turns: MAX_TURNS,
+            timeout: Duration::from_secs(MAX_TIMEOUT),
         }
     }
 
@@ -96,12 +95,27 @@ impl MeetingWorkflow {
         let mut candidate: Option<String> = None;
 
         for _ in 0..self.max_turns {
-            let prompt = Self::round_prompt(query, &rounds, candidate.as_deref());
+            let prompt = create_meeting_prompt(query, &rounds, candidate.as_deref());
             // try_join! 同时启动三次请求；某次失败时其余请求随 future 一起取消。
             let (balthasar, casper, melchior) = tokio::try_join!(
-                self.speak(&self.balthasar, IDS[0], &prompt, candidate.as_deref()),
-                self.speak(&self.casper, IDS[1], &prompt, candidate.as_deref()),
-                self.speak(&self.melchior, IDS[2], &prompt, candidate.as_deref()),
+                self.speak(
+                    &self.balthasar,
+                    MagiCoreID::Balthasar,
+                    &prompt,
+                    candidate.as_deref()
+                ),
+                self.speak(
+                    &self.casper,
+                    MagiCoreID::Casper,
+                    &prompt,
+                    candidate.as_deref()
+                ),
+                self.speak(
+                    &self.melchior,
+                    MagiCoreID::Melchior,
+                    &prompt,
+                    candidate.as_deref()
+                ),
             )?;
             let messages = vec![balthasar, casper, melchior];
             let unanimous = if candidate.is_some() {
@@ -173,28 +187,32 @@ impl MeetingWorkflow {
             agrees_with_candidate: output.agrees_with_candidate,
         })
     }
+}
 
-    fn round_prompt(query: &str, rounds: &[MeetingRound], candidate: Option<&str>) -> String {
-        let mut prompt = format!(
-            "用户问题：\n{query}\n\n请参与三人会议。以 JSON schema 输出 message、proposal 与 agrees_with_candidate。message 是公开发言；proposal 必须是能独立回答用户问题的完整结论。若反对当前候选，proposal 应给出可直接作为下一轮候选的替代结论。\n"
-        );
-        if let Some(candidate) = candidate {
-            prompt.push_str(&format!("\n本轮共同评议的候选结论：\n{candidate}\n仅当你完全认可这一版候选结论时，agrees_with_candidate 才为 true，此时 proposal 必须原样复制候选结论。\n"));
-        } else {
-            prompt.push_str("\n首轮没有候选结论，agrees_with_candidate 必须为 false。\n");
-        }
-        if !rounds.is_empty() {
-            prompt.push_str("\n此前公开讨论记录：\n");
-            for (index, round) in rounds.iter().enumerate() {
-                prompt.push_str(&format!("第 {} 轮：\n", index + 1));
-                for message in &round.messages {
-                    prompt.push_str(&format!(
-                        "{}：{}\n  提案：{}\n",
-                        message.id, message.message, message.proposal
-                    ));
-                }
+impl WorkflowResult for MeetingResult {
+    fn show(&self) -> String {
+        let mut s = String::with_capacity(2000);
+        for (index, round) in self.rounds.iter().enumerate() {
+            writeln!(
+                &mut s,
+                "第 {} 轮，候选结论：{:?}",
+                index + 1,
+                round.candidate
+            )
+            .unwrap();
+            for message in &round.messages {
+                writeln!(
+                    &mut s,
+                    "{}：{}；提案：{}（认可候选：{}）",
+                    message.id, message.message, message.proposal, message.agrees_with_candidate
+                )
+                .unwrap();
             }
         }
-        prompt
+        match &self.consensus {
+            Some(consensus) => writeln!(&mut s, "共同意见：{consensus}").unwrap(),
+            None => writeln!(&mut s, "达到最大轮数，尚未取得三人共同意见").unwrap(),
+        }
+        s
     }
 }

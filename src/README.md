@@ -1,78 +1,47 @@
 # src 交接导航
 
-当前可运行的业务有文章评审、会议讨论和二元投票。工具网关、自动选择工作流和更复杂的共识规则仍属于规划。
+当前 CLI 根据意图调用投票或会议工作流。文章评审工作流与 examples 已移除。根目录 [README](../README.md) 给出运行方法和后续 TODO。
 
-## 从哪里开始阅读
-
-| 入口或模块 | 职责 | 接口说明 |
+| 入口或模块 | 当前职责 | 详细说明 |
 | --- | --- | --- |
-| [main.rs](main.rs) | CLI 示例：加载环境、构造模型、运行流程、打印结果 | 本文“CLI 入口” |
-| [lib.rs](lib.rs) | 导出库模块；Rust 导入名为 `rust_magi` | 本表中的模块文档 |
-| [agent](agent/README.md) | 统一身份、模型工厂、消息消费循环 | `MagiCoreID`、`MagiCore`、`AutonomousAgent` |
-| [bus](bus/README.md) | 收件箱、定向消息与公开响应转发 | `AgentMessage`、`MessageBus`、`AgentMailbox` |
-| [config](config/README.md) | 保存每个身份的模型名称 | `MagiConfiguration` |
-| [prompt](prompt/README.md) | 拼接人格前缀与基础系统提示词 | `create_sys_prompt`，以及私有人格模板说明 |
-| [workflow](workflow/README.md) | 编排文章评审、会议及投票 | `ArticleReviewWorkflow`、`MeetingWorkflow`、`VoteWorkflow` |
-| [constance.rs](constance.rs) | CLI 示例默认模型名、基础提示词 | 本文“默认常量” |
+| [main.rs](main.rs) | 加载 `.env`、读取命令行问题、识别意图并运行对应工作流 | 下文 |
+| [lib.rs](lib.rs) | 导出库模块；Rust 导入名为 `rust_magi` | 各模块文档 |
+| [agent](agent/README.md) | 三位成员与 `FastCheap` 身份、模型工厂、意图识别、消息消费循环 | `MagiCore`、`IntentWorkflow`、`AutonomousAgent` |
+| [bus](bus/README.md) | 有界收件箱、定向消息和公开响应转发 | `AgentMessage`、`MessageBus` |
+| [config](config/README.md) | 四个身份的模型名称 | `MagiConfiguration` |
+| [prompt](prompt/README.md) | 人格、意图、投票与会议提示词 | `create_prompt`、`intent_recognise` |
+| [workflow](workflow/README.md) | 投票与会议编排及结果展示 | `VoteWorkflow`、`MeetingWorkflow`、`WorkflowResult` |
+| [constance.rs](constance.rs) | CLI 默认模型名与基础提示词 | 下文 |
 
-建议按 `main → workflow → agent → bus` 理解执行过程，再查看 `config` 和 `prompt`。每个目录 README 同时介绍其文件子模块，不需要按文件名再创建目录。
-
-## 调用与数据流
+## CLI 数据流
 
 ```text
-main
-  ├─ MagiConfiguration::new：模型名
-  ├─ MagiCore::new：身份 + 模型名 + create_sys_prompt → Rig Agent
-  └─ ArticleReviewWorkflow::run
-       ├─ MessageBus::new / take_mailbox：创建并分配收件箱
-       ├─ JoinSet：启动三个 AutonomousAgent::run
-       ├─ Task → Balthasar → Response(文章)
-       ├─ Trigger(文章) → Casper / Melchior → 两份 Response
-       └─ Shutdown + 等待任务退出 → ArticleReviewResult → main 打印
+命令行参数拼成 query
+  → MagiConfiguration::new（Balthasar、Casper、Melchior、FastCheap 的模型名）
+  → IntentWorkflow::run(&query)
+     ├─ Intention::Vote { option_a, option_b }
+     │    → VoteWorkflow::run(query, &intention) → VoteResult
+     └─ Intention::Meeting { interpretation }
+          → MeetingWorkflow::run(query) → MeetingResult
+  → WorkflowResult::show() → 标准输出
 ```
 
-`AgentMailbox::respond` 只把响应放入公共队列；工作流调用 `MessageBus::recv` 后，总线才转发给其他 Agent 并将响应交给工作流。公共响应记录在 Agent 内存中，目前不会自动加入后续模型请求。
-
-所有身份使用 `agent::factory::MagiCoreID`。文章评审中的角色映射为 Balthasar＝作者、Casper＝改进建议评审、Melchior＝事实核查；会议和投票中三者都是参与成员。不要使用整数或字符串代替身份。
-
-## CLI 入口：main.rs
-
-`main() -> anyhow::Result<()>` 在 Tokio 运行时中执行一次固定的 Rust 所有权写作任务，不解析命令行参数。库模块不加载环境、不打印业务结果，这些职责留在入口。
-
-实际调用依赖 `.env` 和模型服务配置：
-
-- `dotenvy::dotenv()?` 会查找并加载 `.env`；当前即使进程已经有环境变量，找不到 `.env` 仍会返回错误。
-- `OpenAI::from_env()` 使用 `OPENAI_API_KEY`，并支持可选的 `OPENAI_BASE_URL`。根据实际服务填写；不要把真实凭证提交到仓库。
-- 配置的模型名称必须由该服务支持。代码里的默认名称不保证在任意服务端均可用。
-
-所有验证命令均从仓库根目录执行：
+`main` 使用 `dotenvy::dotenv()?`，因此即使环境变量已在进程中设置，找不到 `.env` 仍会返回错误。`OpenAI::from_env()` 使用 `OPENAI_API_KEY`，兼容服务可设置 `OPENAI_BASE_URL`。空白问题会返回错误。意图识别、投票和会议都需要真实模型服务；库和离线测试不依赖该服务。当前会议分支只展示 `interpretation`，发给会议 Agent 的仍是原始 query。
 
 ```bash
-cargo test                         # 离线测试，无需 API Key
-cargo doc --no-deps                # 生成接口文档到 target/doc
-cargo clippy --all-targets         # 静态检查，目前有既有警告
-cargo run                          # 真实模型调用，需要环境和服务配置
+cargo test --all-targets             # Mock 模型离线测试
+cargo doc --no-deps                # 生成接口文档
+cargo run -- "如何发布新版本？"   # 真实模型调用
 ```
 
-## 默认常量：constance.rs
+## 默认值与边界
 
-| 常量 | 用途与当前状态 |
-| --- | --- |
-| `AGENT1_MODEL_NAME` | CLI 中 Balthasar 的模型名 |
-| `AGENT2_MODEL_NAME` | CLI 中 Casper 的模型名 |
-| `AGENT3_MODEL_NAME` | CLI 中 Melchior 的模型名 |
-| `AGENT1_PREABLE` | 写作及评审基础提示词；工厂当前为所有身份使用它 |
-| `AGENT2_PREABLE` | 预留的评审基础提示词，尚未被工厂使用 |
-| `AGENT3_PREABLE` | 预留的核查基础提示词，尚未被工厂使用 |
+`AGENT1_MODEL_NAME`、`AGENT2_MODEL_NAME`、`AGENT3_MODEL_NAME` 分别给 Balthasar、Casper、Melchior；`CHEAP_MODEL_NAME` 给意图识别用的 `FastCheap`。`MAGI_GENERAL_PREABLE` 用于 CLI 中三位成员，工厂的 `MagiCore::new` 则仍使用 `AGENT1_PREABLE`。`AGENT2_PREABLE` 和 `AGENT3_PREABLE` 尚未接入。
 
-`constance`、`PREABLE` 和 `agent::atuonomous` 都是现有命名，导入时保持原样。调整模型名或人格模板不会自动实现新业务模式。
+- 配置文件搜索、创建和加载仍为 `todo!()`；目前使用 `MagiConfiguration::new`。
+- `MagiCore::chat_completion` 与 `stream_completion` 尚未实现。
+- `AutonomousAgent` 的响应历史只存于内存；当前投票与会议不使用 `MessageBus`。
+- 会议默认最多 10 轮、3000 秒；投票默认 120 秒。超时可由 `with_timeout` 修改。
+- `tests/meeting_workflow.rs`、`tests/vote_workflow.rs` 与 `tests/prompts.rs` 覆盖当前业务；`tests/bus.rs`、`tests/mock_agent.rs` 和 `tests/config.rs` 覆盖保留的基础模块。
 
-## 接手时需先知道的边界
-
-- 配置文件搜索、创建和加载仍是 `todo!()`；不要调用 `get_config_from_file`。
-- `MagiCore::chat_completion` 和 `stream_completion` 尚未实现，调用会 panic。
-- 人格前缀仍是占位文本，包括 Melchior 当前的 `harmful`；不能视为已完成 README 中的人格设计。
-- 默认流程超时为 120 秒，可通过 `with_timeout` 调整。失败不返回部分结果，正常退出与失败清理详见 workflow 文档。
-- `tests/agent_flow.rs` 覆盖流程和取消，`tests/bus.rs` 覆盖路由，`tests/mock_agent.rs` 覆盖执行循环，`tests/config.rs` 与配置模块单元测试覆盖模型映射。
-
-后续修改公共接口时，同时更新该模块 README、Rustdoc 和对应测试。新增业务流程优先放在 `workflow`，不要把业务顺序重新放回 `main` 或 `bus`。
+后续工作顺序：从文件读取 config、实现 history 和 memory 管理、流式输入输出、更好的 UI。修改公共接口时，同步更新对应模块 README 与测试。

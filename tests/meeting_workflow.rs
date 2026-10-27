@@ -4,7 +4,7 @@ use rig::{
     prelude::*,
     test_utils::{MockCompletionModel, MockTurn},
 };
-use rust_magi::workflow::meeting::MeetingWorkflow;
+use rust_magi::workflow::{meeting::MeetingWorkflow, result::WorkflowResult};
 
 fn agent(turns: &[&str]) -> (Agent, MockCompletionModel) {
     let model = MockCompletionModel::from_turns(turns.iter().map(|text| MockTurn::text(*text)));
@@ -33,6 +33,9 @@ async fn discussion_shares_every_initial_message_and_stops_on_unanimity() {
         .unwrap();
     assert_eq!(result.consensus.as_deref(), Some("Use a staged rollout"));
     assert_eq!(result.rounds.len(), 2);
+    let display = result.show();
+    assert!(display.contains("共同意见：Use a staged rollout"));
+    assert!(display.contains("第 2 轮"));
     for model in [&b_model, &c_model, &m_model] {
         assert_eq!(model.request_count(), 2);
         let requests = format!("{:?}", model.requests());
@@ -68,6 +71,7 @@ async fn max_turns_returns_unresolved_discussion() {
         .unwrap();
     assert_eq!(result.consensus, None);
     assert_eq!(result.rounds.len(), 2);
+    assert!(result.show().contains("尚未取得三人共同意见"));
 }
 
 #[tokio::test]
@@ -144,4 +148,35 @@ async fn zero_turns_and_invalid_reply_are_errors() {
     let (b, _) = agent(&[r#"{"message":"B","proposal":"B","agrees_with_candidate":false}"#]);
     let (c, _) = agent(&[r#"{"message":"C","proposal":"C","agrees_with_candidate":false}"#]);
     assert!(MeetingWorkflow::new(a, b, c).run("q").await.is_err());
+}
+
+#[tokio::test]
+async fn agreement_without_candidate_is_rejected() {
+    let wrong = r#"{"message":"Agreed","proposal":"Plan A","agrees_with_candidate":true}"#;
+    let valid = r#"{"message":"Propose","proposal":"Plan A","agrees_with_candidate":false}"#;
+    let (a, _) = agent(&[wrong]);
+    let (b, _) = agent(&[valid]);
+    let (c, _) = agent(&[valid]);
+    let error = MeetingWorkflow::new(a, b, c)
+        .run("Choose a plan")
+        .await
+        .unwrap_err();
+    assert!(format!("{error:#}").contains("agreed without a meeting candidate"));
+}
+
+#[tokio::test]
+async fn agreement_that_changes_candidate_is_rejected() {
+    let first = r#"{"message":"Propose","proposal":"Plan A","agrees_with_candidate":false}"#;
+    let dissent = r#"{"message":"Dissent","proposal":"Plan B","agrees_with_candidate":false}"#;
+    let wrong = r#"{"message":"Agreed","proposal":"Plan C","agrees_with_candidate":true}"#;
+    let valid = r#"{"message":"Agreed","proposal":"Plan A","agrees_with_candidate":true}"#;
+    let (a, _) = agent(&[first, wrong]);
+    let (b, _) = agent(&[dissent, valid]);
+    let (c, _) = agent(&[first, valid]);
+    let error = MeetingWorkflow::new(a, b, c)
+        .with_max_turns(2)
+        .run("Choose a plan")
+        .await
+        .unwrap_err();
+    assert!(format!("{error:#}").contains("agreed but changed the meeting candidate"));
 }

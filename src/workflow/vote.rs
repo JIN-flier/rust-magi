@@ -8,7 +8,12 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio::time::timeout;
 
-use crate::agent::factory::MagiCoreID;
+use crate::workflow::result::WorkflowResult;
+use crate::{
+    agent::{factory::MagiCoreID, intent::Intention},
+    prompt::create_prompt::create_vote_prompt,
+};
+use std::fmt::Write; 
 
 /// 一个 MAGI 的最终票。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,13 +62,17 @@ impl VoteWorkflow {
     }
 
     /// 三次模型请求并行执行。任何一票无效或失败均返回错误，不产生决议。
-    pub async fn run(&self, query: impl Into<String>) -> Result<VoteResult> {
+    pub async fn run(
+        &self,
+        query: impl Into<String>,
+        vote_choise: &Intention,
+    ) -> Result<VoteResult> {
         let query = query.into();
         timeout(self.timeout, async {
             let (balthasar, casper, melchior) = tokio::try_join!(
-                self.cast(&self.balthasar, MagiCoreID::Balthasar, &query),
-                self.cast(&self.casper, MagiCoreID::Casper, &query),
-                self.cast(&self.melchior, MagiCoreID::Melchior, &query),
+                self.cast(&self.balthasar, MagiCoreID::Balthasar, &query, vote_choise),
+                self.cast(&self.casper, MagiCoreID::Casper, &query, vote_choise),
+                self.cast(&self.melchior, MagiCoreID::Melchior, &query, vote_choise),
             )?;
             let votes = vec![balthasar, casper, melchior];
             let decision = votes.iter().filter(|vote| vote.choice).count() >= 2;
@@ -73,10 +82,14 @@ impl VoteWorkflow {
         .context("Vote workflow timed out")?
     }
 
-    async fn cast(&self, agent: &Agent, id: MagiCoreID, query: &str) -> Result<Vote> {
-        let prompt = format!(
-            "用户问题：\n{query}\n\n请独立做出二元选择，并严格按 JSON schema 输出 choice（布尔值）和 reason（理由）。"
-        );
+    async fn cast(
+        &self,
+        agent: &Agent,
+        id: MagiCoreID,
+        query: &str,
+        vote_choise: &Intention,
+    ) -> Result<Vote> {
+        let prompt = create_vote_prompt(vote_choise, query);
         let output = agent
             .prompt_typed::<VoteOutput>(prompt)
             .await
@@ -91,5 +104,16 @@ impl VoteWorkflow {
             choice: output.choice,
             reason: output.reason.trim().to_owned(),
         })
+    }
+}
+
+impl WorkflowResult for VoteResult {
+    fn show(&self) -> String {
+        let mut s = String::with_capacity(200);
+        for vote in &self.votes {
+            writeln!(&mut s, "{}：{}，理由：{}", vote.id, vote.choice, vote.reason).unwrap();
+        }
+        writeln!(&mut s, "多数决：{}", self.decision).unwrap();
+        s
     }
 }

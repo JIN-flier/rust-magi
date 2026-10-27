@@ -8,12 +8,12 @@
 
 | 接口 | 功能与返回值 | 当前状态 |
 | --- | --- | --- |
-| `MagiConfiguration::new(balthasar_model_name: String, casper_model_name: String, melchior_model_name: String) -> Self` | 按三个身份保存模型名 | 已实现；不校验空值或服务端可用性 |
+| `MagiConfiguration::new(balthasar_model_name: String, casper_model_name: String, melchior_model_name: String, cheap_model_name: String) -> Self` | 按四个身份保存模型名 | 已实现；不校验空值或服务端可用性 |
 | `get_model_name(&self, id: &MagiCoreID) -> String` | 返回对应模型名的副本 | 已实现；无 I/O |
 | `MagiConfiguration::get_config_from_file() -> Self` | 预留的文件配置加载入口 | 未实现，调用会 panic |
-| `DEFAULT_MODEL_NAME: &str` | 预留回退名称 | 现有身份分支已穷尽，当前不会使用回退分支 |
+| `DEFAULT_MODEL_NAME: &str` | 预留回退名称 | 四个身份分支已穷尽，当前不会使用回退分支 |
 
-构造函数参数顺序是 **Balthasar、Casper、Melchior**，不要根据 `MagiCoreID` 的声明顺序传参。结构体字段是私有的，没有 setter；调整配置时可重新构造对象。
+构造函数参数顺序是 **Balthasar、Casper、Melchior、FastCheap**，不要根据 `MagiCoreID` 的声明顺序传参。最后一个模型用于意图识别。结构体字段是私有的，没有 setter；调整配置时可重新构造对象。
 
 ## 使用示例
 
@@ -28,8 +28,10 @@ fn main() {
         "writer-model".into(),
         "review-model".into(),
         "fact-model".into(),
+        "intent-model".into(),
     );
     assert_eq!(config.get_model_name(&MagiCoreID::Casper), "review-model");
+    assert_eq!(config.get_model_name(&MagiCoreID::FastCheap), "intent-model");
 }
 ```
 

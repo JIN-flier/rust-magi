@@ -3,16 +3,18 @@
 //! 当前写作任务固定在代码中，尚不解析命令行参数。
 
 use rust_magi::{
-    agent::factory::{MagiCore, MagiCoreID},
-    config::config::MagiConfiguration,
-    constance::{AGENT1_MODEL_NAME, AGENT2_MODEL_NAME, AGENT3_MODEL_NAME, CHEAP_MODEL_NAME},
-    workflow::article_review::ArticleReviewWorkflow,
+    agent::{
+        factory::{MagiCore, MagiCoreID},
+        intent::{IntentWorkflow, Intention},
+    }, config::config::MagiConfiguration, constance::{
+        AGENT1_MODEL_NAME, AGENT2_MODEL_NAME, AGENT3_MODEL_NAME, CHEAP_MODEL_NAME,
+        MAGI_GENERAL_PREABLE,
+    }, workflow::{meeting::MeetingWorkflow, vote::VoteWorkflow},
 };
+use rust_magi::workflow::result::WorkflowResult;
 
 #[tokio::main]
-/// 运行一次文章评审；`.env` 加载、模型初始化或工作流失败时向进程返回错误。
 async fn main() -> anyhow::Result<()> {
-    // 保持现有行为：找不到或无法解析 .env 也会使程序返回错误。
     dotenvy::dotenv()?;
 
     let config = MagiConfiguration::new(
@@ -21,20 +23,47 @@ async fn main() -> anyhow::Result<()> {
         AGENT3_MODEL_NAME.to_string(),
         CHEAP_MODEL_NAME.to_string(),
     );
-    let writer = MagiCore::new(MagiCoreID::Balthasar, &config)?;
-    let reviewer = MagiCore::new(MagiCoreID::Casper, &config)?;
-    let fact_checker = MagiCore::new(MagiCoreID::Melchior, &config)?;
 
-    let result = ArticleReviewWorkflow::new(
-        writer.get_agent().clone(),
-        reviewer.get_agent().clone(),
-        fact_checker.get_agent().clone(),
-    )
-    .run("写一篇关于 Rust 所有权机制的简短技术介绍。")
-    .await?;
+    let balthasar =
+        MagiCore::new_with_preamble(MagiCoreID::Balthasar, &config, MAGI_GENERAL_PREABLE)?;
+    let casper = MagiCore::new_with_preamble(MagiCoreID::Casper, &config, MAGI_GENERAL_PREABLE)?;
+    let melchior =
+        MagiCore::new_with_preamble(MagiCoreID::Melchior, &config, MAGI_GENERAL_PREABLE)?;
 
-    println!("Agent {} 完成文章:\n{}", writer.get_id(), result.article);
-    println!("Agent {}:\n{}", reviewer.get_id(), result.review);
-    println!("Agent {}:\n{}", fact_checker.get_id(), result.fact_check);
+    let intent_workflow: IntentWorkflow = IntentWorkflow::new(MagiCoreID::FastCheap, &config)?;
+
+    let query = std::env::args().skip(1).collect::<Vec<_>>().join(" ");
+    // let query = "如何学习rust？";
+    // let query = "我连续健身了7周没有间断，今天十二有点儿多，时间安排不过来了，今天是否应该不去健身呢？";
+    // let query = "我连续健身了7周没有间断，今天十二有点儿多，时间安排不过来了，今天是否应该不去健身呢？告我是或否";
+    anyhow::ensure!(!query.trim().is_empty(), "请在命令行提供会议问题");
+
+    let intent = intent_workflow.run(&query).await?;
+    println!("{}", intent);
+
+    let workflow_result: Box<dyn WorkflowResult> = match intent {
+        Intention::Vote { option_a, option_b } => {
+            let result = VoteWorkflow::new(
+                balthasar.get_agent().clone(),
+                casper.get_agent().clone(),
+                melchior.get_agent().clone(),
+            )
+            .run(query, &Intention::Vote{option_a, option_b})
+            .await?;
+            Box::new(result)
+        }
+        Intention::Meeting { interpretation } => {
+            let result = MeetingWorkflow::new(
+                balthasar.get_agent().clone(),
+                casper.get_agent().clone(),
+                melchior.get_agent().clone(),
+            )
+            .run(query)
+            .await?;
+            Box::new(result)
+        }
+    };
+    println!("{}", workflow_result.show());
+
     Ok(())
 }

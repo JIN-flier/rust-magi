@@ -4,7 +4,7 @@
 
 /// 系统提示词的公共拼接接口。
 pub mod create_prompt;
-/// 当前示例使用的内部人格占位文本。
+/// 基于 EVA 中 MAGI 三种人格侧面的内部提示词。
 mod personality;
 /// 用于进行意图识别
 pub mod intent_recognise;
